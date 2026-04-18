@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="路線規劃">
+<meta name="theme-color" content="#2563eb">
+<title>路線規劃</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;color:#1a1a1a;min-height:100vh}
+.topbar{background:#2563eb;color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:1000}
+.topbar-title{font-size:17px;font-weight:700}
+.topbar-sub{font-size:12px;opacity:0.8}
+.app{padding:12px;max-width:520px;margin:0 auto;padding-bottom:60px}
+.card{background:#fff;border-radius:14px;padding:14px 16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.08)}
+.sec-title{font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px}
+label{font-size:13px;color:#555;display:block;margin-bottom:4px;margin-top:10px}
+label:first-of-type{margin-top:0}
+input[type=text]{width:100%;font-size:15px;padding:10px 12px;border:1.5px solid #e0e0e0;border-radius:10px;outline:none;background:#fafafa;color:#1a1a1a}
+input[type=text]:focus{border-color:#2563eb;background:#fff}
+.btn{width:100%;padding:13px;font-size:15px;font-weight:700;border-radius:12px;border:none;cursor:pointer;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:6px}
+.btn-primary{background:#2563eb;color:#fff}
+.btn-primary:active{background:#1d4ed8}
+.btn-primary:disabled{background:#93b4f7}
+.btn-gray{background:#f0f0ee;color:#555}
+.btn-gray:active{background:#e4e4e2}
+.upload-area{border:2px dashed #c7d8f8;border-radius:12px;padding:16px;text-align:center;cursor:pointer;background:#f0f5ff}
+.upload-area:active{background:#e0eaff}
+.upload-icon{font-size:28px;margin-bottom:4px}
+.upload-label{font-size:14px;color:#2563eb;font-weight:600}
+.upload-hint{font-size:12px;color:#888;margin-top:2px}
+#fileInput{display:none}
+.stop-count-badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;background:#e0eaff;color:#2563eb;font-weight:700;margin-left:6px}
+.stop-list{list-style:none;max-height:200px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.stop-item{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:0.5px solid #f0f0f0}
+.stop-item:last-child{border-bottom:none}
+.snum{width:24px;height:24px;border-radius:50%;background:#2563eb;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.snum.manual{background:#f59e0b}
+.sinfo{flex:1;min-width:0}
+.sname{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.saddr{font-size:12px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.snote{font-size:11px;color:#f59e0b;margin-top:4px;padding:3px 6px;background:#fffbeb;border-radius:4px;display:inline-block}
+.del-btn{background:none;border:none;font-size:16px;color:#ddd;cursor:pointer;padding:4px}
+.del-btn:active{color:#ef4444}
+.gps-row{display:flex;gap:8px;align-items:center}
+.gps-row input{flex:1}
+.gps-btn{width:44px;height:44px;border-radius:10px;border:1.5px solid #e0e0e0;background:#fafafa;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.gps-status{font-size:12px;color:#888;margin-top:4px;min-height:16px}
+.progress-wrap{display:none;background:#fff;border-radius:14px;padding:14px 16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.08)}
+.progress-bar-bg{background:#e0e7ff;border-radius:99px;height:10px;overflow:hidden;margin-bottom:8px}
+.progress-bar{background:#2563eb;height:10px;border-radius:99px;width:0%;transition:width 0.3s}
+.progress-text{font-size:13px;color:#555;text-align:center}
+
+/* 地圖 */
+#mapContainer{width:100%;height:280px;border-radius:12px;overflow:hidden;margin-bottom:0}
+#map{width:100%;height:100%}
+.map-hint{font-size:11px;color:#aaa;text-align:center;margin-top:4px}
+
+/* 導航畫面 */
+.nav-screen{display:none}
+.nav-header{background:#1e40af;color:#fff;border-radius:14px;padding:16px;margin-bottom:12px;text-align:center}
+.nav-fraction{font-size:28px;font-weight:700}
+.nav-bar-bg{background:rgba(255,255,255,0.3);border-radius:99px;height:6px;margin-top:10px;overflow:hidden}
+.nav-bar{background:#fff;height:6px;border-radius:99px;transition:width 0.4s}
+.nav-current{background:#fff;border-radius:14px;padding:16px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,0.1);border-left:4px solid #2563eb}
+.nav-label{font-size:11px;font-weight:700;color:#2563eb;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px}
+.nav-name{font-size:20px;font-weight:700;margin-bottom:4px}
+.nav-addr{font-size:14px;color:#666}
+.nav-dist{font-size:13px;color:#888;margin-top:6px}
+.nav-next{background:#f8f9ff;border-radius:14px;padding:14px 16px;margin-bottom:12px;border:0.5px solid #e0e7ff}
+.nav-next-label{font-size:11px;font-weight:700;color:#888;margin-bottom:4px}
+.nav-next-name{font-size:15px;font-weight:600;color:#555}
+.nav-next-addr{font-size:12px;color:#888}
+.btn-nav-go{background:#22c55e;color:#fff;font-size:20px;padding:20px 18px;border-radius:16px;border:none;width:100%;cursor:pointer;font-weight:800;margin-bottom:10px;box-shadow:0 4px 12px rgba(34,197,94,0.4)}
+.btn-nav-go:active{background:#16a34a;transform:scale(0.98)}
+.btn-nav-done{background:#3b82f6;color:#fff;font-size:20px;padding:20px 18px;border-radius:16px;border:none;width:100%;cursor:pointer;font-weight:800;margin-bottom:10px;box-shadow:0 4px 12px rgba(59,130,246,0.4)}
+.btn-nav-done:active{background:#2563eb;transform:scale(0.98)}
+.btn-nav-skip{background:#e5e7eb;color:#374151;font-size:16px;padding:14px;border-radius:14px;border:none;width:100%;cursor:pointer;margin-bottom:10px;font-weight:600}
+.route-preview{list-style:none}
+.rp-item{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid #f0f0f0;font-size:13px}
+.rp-item:last-child{border-bottom:none}
+.rp-item.done{opacity:0.35;text-decoration:line-through}
+.rp-item.current{font-weight:700;color:#2563eb}
+.rp-num{width:22px;height:22px;border-radius:50%;background:#e0e7ff;color:#2563eb;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+.rp-num.done-num{background:#f0f0f0;color:#aaa}
+.rp-num.cur-num{background:#2563eb;color:#fff}
+.empty-hint{text-align:center;color:#bbb;font-size:13px;padding:16px 0}
+
+/* 導航地圖 */
+#navMapContainer{width:100%;height:220px;border-radius:12px;overflow:hidden;margin-bottom:12px}
+#navMap{width:100%;height:100%}
+</style>
+</head>
+<body>
+
+<!-- 設定畫面 -->
+<div id="setupScreen">
+  <div class="topbar">
+    <div><div class="topbar-title">📍 路線規劃</div></div>
+  </div>
+  <div class="app">
+
+    <div class="card">
+      <div class="sec-title">出發點 / 終點</div>
+      <label>出發點地址</label>
+      <div class="gps-row">
+        <input type="text" id="startInput" placeholder="輸入地址（或點右側 GPS）">
+        <button class="gps-btn" onclick="getGPS()">📡</button>
+      </div>
+      <div class="gps-status" id="gpsStatus"></div>
+      <label>終點（留空則回出發點）</label>
+      <input type="text" id="endInput" placeholder="輸入地址">
+    </div>
+
+    <div class="card">
+      <div class="sec-title">匯入 Excel 站點</div>
+      <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+        <div class="upload-icon">📋</div>
+        <div class="upload-label">點擊匯入 Excel 檔案</div>
+        <div class="upload-hint">需含 Address 及 name 欄位</div>
+      </div>
+      <input type="file" id="fileInput" accept=".xlsx,.xls">
+    </div>
+
+    <div class="card">
+      <div class="sec-title">臨時新增站點 <span style="color:#f59e0b;font-size:14px">●</span></div>
+      <input type="text" id="addName" placeholder="名稱（選填）" style="margin-bottom:8px">
+      <div style="display:flex;gap:8px">
+        <input type="text" id="addAddr" placeholder="地址（必填）" style="flex:1">
+        <button style="padding:9px 14px;font-size:14px;font-weight:700;border-radius:10px;border:none;background:#f59e0b;color:#fff;cursor:pointer;white-space:nowrap" onclick="addManual()">＋ 新增</button>
+      </div>
+      <!-- 新增：备注字段 -->
+      <input type="text" id="addNote" placeholder="備註（停留几分钟、要交什么东西）" style="margin-top:8px;width:100%;font-size:14px;padding:10px 12px;border:1.5px solid #e0e0e0;border-radius:10px">
+    </div>
+
+    <div class="card">
+      <div class="sec-title">站點清單 <span class="stop-count-badge" id="stopCount">0 個</span></div>
+      <ul class="stop-list" id="stopList">
+        <li class="empty-hint">尚未匯入站點</li>
+      </ul>
+      <button class="btn btn-gray" onclick="clearAll()" style="margin-bottom:12px">清除所有站點</button>
+      <!-- 互動地圖放最下面 -->
+      <div class="sec-title" style="margin-top:4px">路線地圖</div>
+      <div id="mapContainer"><div id="map"></div></div>
+      <div class="map-hint">可縮放、拖動地圖</div>
+    </div>
+
+    <button class="btn btn-primary" id="calcBtn" onclick="calcRoute()">
+      <span>⚡</span><span>計算最佳路線並開始導航</span>
+    </button>
+
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-bar-bg"><div class="progress-bar" id="progressBar"></div></div>
+      <div class="progress-text" id="progressText">計算中...</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- 導航畫面 -->
+<div id="navScreen" class="nav-screen">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title">🧭 導航中</div>
+      <div class="topbar-sub" id="navTopSub"></div>
+    </div>
+    <button onclick="exitNav()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;padding:6px 12px;border-radius:8px;font-size:13px;cursor:pointer">結束</button>
+  </div>
+  <div class="app">
+    <div class="nav-header">
+      <div style="font-size:13px;opacity:0.8;margin-bottom:4px">目前站點</div>
+      <div class="nav-fraction" id="navFraction">1 / 10</div>
+      <div class="nav-bar-bg"><div class="nav-bar" id="navBar" style="width:10%"></div></div>
+    </div>
+
+    <!-- 導航地圖 -->
+    <div id="navMapContainer"><div id="navMap"></div></div>
+
+    <div class="nav-current">
+      <div class="nav-label">📍 前往</div>
+      <div class="nav-name" id="navCurName"></div>
+      <div class="nav-addr" id="navCurAddr"></div>
+      <div class="nav-dist" id="navCurDist"></div>
+      <div id="navCurNote" style="margin-top:8px;padding:8px 12px;background:#fff3cd;border-radius:8px;font-size:14px;color:#856404;display:none"></div>
+    </div>
+
+    <button class="btn-nav-go" onclick="goNavigate()">🗺 開啟 Google Maps 導航</button>
+    <button class="btn-nav-done" onclick="nextStop()">✅ 已到達，前往下一站</button>
+    <button class="btn-nav-skip" onclick="skipStop()">跳過此站</button>
+
+    <div class="card">
+      <div class="sec-title">下一站</div>
+      <div class="nav-next-name" id="navNextName" style="font-size:15px;font-weight:600;color:#aaa">（已是最後一站）</div>
+      <div class="nav-next-addr" id="navNextAddr" style="font-size:12px;color:#888;margin-top:2px"></div>
+    </div>
+
+    <div class="card">
+      <div class="sec-title">全部路線</div>
+      <ul class="route-preview" id="routePreview"></ul>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+// ===== 精確座標資料庫 =====
+const STORE_COORDS = {
+  "屏東縣恆春鎮西門路110號":       {lat:22.0021, lng:120.7398},
+  "屏東縣潮州鎮延平路156號":       {lat:22.5489, lng:120.5386},
+  "屏東縣屏東市大連路21號":        {lat:22.6762, lng:120.4867},
+  "屏東縣屏東市自由路589號":       {lat:22.6689, lng:120.4911},
+  "屏東縣屏東市民族路202號":       {lat:22.6831, lng:120.4878},
+  "屏東縣東港鎮長春一路80號":      {lat:22.4611, lng:120.4528},
+  "屏東縣萬丹鄉大憲街210號":       {lat:22.5897, lng:120.4803},
+  "屏東縣東港鎮博愛街268號":       {lat:22.4672, lng:120.4486},
+  "屏東縣屏東市勝利東路41號":      {lat:22.6797, lng:120.4953},
+  "屏東縣潮州鎮昇東路93號":        {lat:22.5514, lng:120.5428},
+  "屏東縣鹽埔鄉維新路42-5號":      {lat:22.7514, lng:120.5706},
+  "屏東縣屏東市永大路71號":        {lat:22.6853, lng:120.4942},
+  "屏東縣萬丹鄉大順路56號":        {lat:22.6011, lng:120.4756},
+  "屏東縣新園鄉仙吉路32號":        {lat:22.5436, lng:120.4339},
+  "屏東縣屏東市廣東路1108-10號":   {lat:22.6711, lng:120.4822},
+  "屏東縣屏東市中正路590號":       {lat:22.6739, lng:120.4939},
+  "屏東縣屏東市復興南路一段187號": {lat:22.6908, lng:120.4914},
+  "屏東縣林邊鄉中林路282號":       {lat:22.4406, lng:120.5158},
+  "屏東縣里港鄉鐵店路21號":        {lat:22.7758, lng:120.5022},
+  "屏東縣屏東市瑞民路6號":         {lat:22.6853, lng:120.4833},
+  "屏東縣枋寮鄉中興路22號":        {lat:22.3708, lng:120.5894},
+  "屏東縣恆春鎮恒南路30號":        {lat:22.0011, lng:120.7461},
+  "屏東縣高樹鄉信義路21號":        {lat:22.8014, lng:120.5906},
+  "屏東縣萬巒鄉褒忠路229號":       {lat:22.5728, lng:120.5572},
+  "屏東縣屏東市自由路163號":       {lat:22.6744, lng:120.4906},
+  "屏東縣長治鄉潭頭路86號":        {lat:22.6558, lng:120.5217},
+  "屏東縣恆春鎮恆南路1巷6-6號":    {lat:22.0003, lng:120.7472},
+  "屏東縣南州鄉人和路1號":         {lat:22.4942, lng:120.5072},
+  "屏東縣潮州鎮光復路179號":       {lat:22.5522, lng:120.5361},
+  "屏東縣內埔鄉昭勝路410號":       {lat:22.6008, lng:120.5714},
+  "屏東縣新埤鄉中正路7，9號":      {lat:22.5072, lng:120.5578},
+  "屏東縣車城鄉中山路95號":        {lat:22.0681, lng:120.7031},
+  "屏東縣內埔鄉永光路3號":         {lat:22.5994, lng:120.5667},
+  "屏東縣九如鄉九里路59-5號":      {lat:22.7275, lng:120.5033},
+  "屏東縣佳冬鄉玉光街107號":       {lat:22.4239, lng:120.5383},
+  "屏東縣潮州鎮公園路117號":       {lat:22.5503, lng:120.5411},
+  "屏東縣內埔鄉勝光路60號":        {lat:22.6019, lng:120.5631},
+  "屏東縣屏東市自由路770號":       {lat:22.6628, lng:120.4917},
+  "屏東縣東港鎮興安二街51號":      {lat:22.4639, lng:120.4508},
+  "屏東縣屏東市公園路73號":        {lat:22.6817, lng:120.4908},
+  // 高雄
+  "高雄市三民區博愛一路229號": {lat:22.6419, lng:120.3033},
+  "高雄市三民區大昌二路525號": {lat:22.6544, lng:120.3172},
+  "高雄市三民區九如一路609號": {lat:22.6486, lng:120.2953},
+  "高雄市三民區明仁路57號": {lat:22.6378, lng:120.3106},
+  "高雄市三民區覺民路617號": {lat:22.6531, lng:120.3075},
+  "高雄市三民區鼎力路243號": {lat:22.6597, lng:120.3239},
+  "高雄市三民區鼎中路668號": {lat:22.6628, lng:120.3314},
+  "高雄市三民區大昌二路146號": {lat:22.6481, lng:120.3061},
+  "高雄市三民區褒揚街285號": {lat:22.6439, lng:120.3158},
+  "高雄市三民區陽明路300號": {lat:22.6353, lng:120.3183},
+  "高雄市三民區大順二路510號": {lat:22.6564, lng:120.3133},
+  "高雄市三民區十全一路161號": {lat:22.6367, lng:120.3017},
+  "高雄市左營區自由三路20號": {lat:22.6775, lng:120.2953},
+  "高雄市左營區自由二路325號": {lat:22.6697, lng:120.2978},
+  "高雄市前金區自強三路256號": {lat:22.6283, lng:120.2992},
+  "高雄市前金區自強二路171號": {lat:22.6311, lng:120.3019},
+  "高雄市前鎮區康定路170號": {lat:22.5994, lng:120.3197},
+  "高雄市前鎮區光華三路115號": {lat:22.6031, lng:120.3114},
+  "高雄市前鎮區廣東三街110號": {lat:22.5958, lng:120.3281},
+  "高雄市前鎮區瑞南街5號": {lat:22.5922, lng:120.3244},
+  "高雄市苓雅區光華一路148號": {lat:22.6136, lng:120.3139},
+  "高雄市苓雅區四維二路100-5號": {lat:22.6197, lng:120.3233},
+  "高雄市苓雅區正義路248號": {lat:22.6253, lng:120.3261},
+  "高雄市苓雅區三多四路123號": {lat:22.6144, lng:120.3278},
+  "高雄市苓雅區正大路123號": {lat:22.6078, lng:120.3172},
+  "高雄市苓雅區凱旋一路158號": {lat:22.6214, lng:120.3175},
+  "高雄市鹽埕區七賢三路243號": {lat:22.6256, lng:120.2878},
+  "高雄市鹽埕區七賢三路6號": {lat:22.6275, lng:120.2856},
+};
+
+const TOWN_COORDS = {
+  '屏東市':{lat:22.6797,lng:120.4906},'潮州鎮':{lat:22.5503,lng:120.5397},
+  '東港鎮':{lat:22.4650,lng:120.4531},'恆春鎮':{lat:22.0031,lng:120.7441},
+  '萬丹鄉':{lat:22.5955,lng:120.4861},'長治鄉':{lat:22.6589,lng:120.5219},
+  '九如鄉':{lat:22.7281,lng:120.5028},'里港鄉':{lat:22.7661,lng:120.5050},
+  '鹽埔鄉':{lat:22.7539,lng:120.5703},'高樹鄉':{lat:22.8067,lng:120.5906},
+  '萬巒鄉':{lat:22.5714,lng:120.5567},'內埔鄉':{lat:22.5989,lng:120.5664},
+  '竹田鄉':{lat:22.5767,lng:120.5289},'新埤鄉':{lat:22.5050,lng:120.5572},
+  '南州鄉':{lat:22.4942,lng:120.5072},'林邊鄉':{lat:22.4367,lng:120.5164},
+  '佳冬鄉':{lat:22.4239,lng:120.5389},'新園鄉':{lat:22.5417,lng:120.4414},
+  '枋寮鄉':{lat:22.3675,lng:120.5914},'車城鄉':{lat:22.0669,lng:120.7028},
+  '三民區':{lat:22.6486,lng:120.3100},'左營區':{lat:22.6800,lng:120.2978},
+  '楠梓區':{lat:22.7317,lng:120.3086},'鼓山區':{lat:22.6531,lng:120.2769},
+  '鹽埕區':{lat:22.6261,lng:120.2869},'前金區':{lat:22.6297,lng:120.3006},
+  '苓雅區':{lat:22.6175,lng:120.3200},'前鎮區':{lat:22.5989,lng:120.3217},
+  '小港區':{lat:22.5694,lng:120.3517},'鳳山區':{lat:22.6267,lng:120.3578},
+  '仁武區':{lat:22.6939,lng:120.3514},'岡山區':{lat:22.7969,lng:120.2972},
+  '橋頭區':{lat:22.7519,lng:120.3019},'旗山區':{lat:22.8914,lng:120.4808},
+  '美濃區':{lat:22.8983,lng:120.5397},'高雄市':{lat:22.6273,lng:120.3014},
+  '台北市':{lat:25.0330,lng:121.5654},'新北市':{lat:25.0169,lng:121.4628},
+  '桃園市':{lat:24.9937,lng:121.3010},'新竹市':{lat:24.8066,lng:120.9686},
+  '新竹縣':{lat:24.8387,lng:121.0177},'苗栗縣':{lat:24.5602,lng:120.8214},
+  '台中市':{lat:24.1477,lng:120.6736},'彰化縣':{lat:24.0667,lng:120.5167},
+  '南投縣':{lat:23.9609,lng:120.9719},'雲林縣':{lat:23.7092,lng:120.4313},
+  '嘉義市':{lat:23.4801,lng:120.4491},'嘉義縣':{lat:23.4518,lng:120.2550},
+  '台南市':{lat:22.9999,lng:120.2270},'宜蘭縣':{lat:24.7021,lng:121.7378},
+  '花蓮縣':{lat:23.9872,lng:121.6015},'台東縣':{lat:22.7972,lng:121.1713},
+};
+
+let stops = [];
+let route = [];
+let currentIdx = 0;
+let startCoord = null;
+let leafletMap = null;
+let navLeafletMap = null;
+let mapMarkers = [];
+let mapPolyline = null;
+
+// 初始化設定地圖
+function initMap() {
+  if (leafletMap) return;
+  leafletMap = L.map('map', { zoomControl: true, attributionControl: false })
+    .setView([22.55, 120.52], 10);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18
+  }).addTo(leafletMap);
+}
+
+// 更新設定地圖
+function updateMap(pts) {
+  if (!leafletMap) initMap();
+  // 清除舊圖層
+  mapMarkers.forEach(m => leafletMap.removeLayer(m));
+  mapMarkers = [];
+  if (mapPolyline) { leafletMap.removeLayer(mapPolyline); mapPolyline = null; }
+  if (!pts.length) return;
+
+  const latlngs = pts.map(p => [p.lat, p.lng]);
+  mapPolyline = L.polyline(latlngs, { color:'#93c5fd', weight:2, dashArray:'6,4' }).addTo(leafletMap);
+
+  pts.forEach((p, i) => {
+    const color = p.manual ? '#f59e0b' : '#2563eb';
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="width:26px;height:26px;border-radius:50%;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3)">${i+1}</div>`,
+      iconSize: [26,26], iconAnchor: [13,13]
+    });
+    const marker = L.marker([p.lat, p.lng], {icon})
+      .bindPopup(`<b>${esc(p.name)}</b><br><span style="font-size:12px;color:#666">${esc(p.address)}</span>`)
+      .addTo(leafletMap);
+    mapMarkers.push(marker);
+  });
+
+  const bounds = L.latLngBounds(latlngs);
+  leafletMap.fitBounds(bounds, { padding: [30, 30] });
+}
+
+// 導航地圖
+function initNavMap() {
+  if (navLeafletMap) return;
+  navLeafletMap = L.map('navMap', { zoomControl: true, attributionControl: false })
+    .setView([22.55, 120.52], 11);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18
+  }).addTo(navLeafletMap);
+}
+
+let navMarkers = [];
+let navPolyline = null;
+
+function updateNavMap() {
+  if (!navLeafletMap) initNavMap();
+  navMarkers.forEach(m => navLeafletMap.removeLayer(m));
+  navMarkers = [];
+  if (navPolyline) { navLeafletMap.removeLayer(navPolyline); navPolyline = null; }
+
+  const latlngs = route.map(p => [p.lat, p.lng]);
+  navPolyline = L.polyline(latlngs, { color:'#93c5fd', weight:2, dashArray:'5,4' }).addTo(navLeafletMap);
+
+  route.forEach((p, i) => {
+    if (i === 0) return;
+    const done = i < currentIdx;
+    const isCur = i === currentIdx;
+    const color = done ? '#d1d5db' : isCur ? '#16a34a' : '#2563eb';
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="width:${isCur?30:22}px;height:${isCur?30:22}px;border-radius:50%;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-size:${isCur?12:10}px;font-weight:700;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3)">${i}</div>`,
+      iconSize: [isCur?30:22, isCur?30:22], iconAnchor: [isCur?15:11, isCur?15:11]
+    });
+    const marker = L.marker([p.lat, p.lng], {icon})
+      .bindPopup(`<b>${esc(p.name)}</b>`)
+      .addTo(navLeafletMap);
+    navMarkers.push(marker);
+  });
+
+  const cur = route[currentIdx];
+  navLeafletMap.setView([cur.lat, cur.lng], 14);
+}
+
+// GPS
+function getGPS() {
+  const st = document.getElementById('gpsStatus');
+  if (!navigator.geolocation) { st.textContent = '此裝置不支援 GPS'; return; }
+  st.textContent = '📡 定位中...';
+  navigator.geolocation.getCurrentPosition(pos => {
+    startCoord = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    document.getElementById('startInput').value = startCoord.lat.toFixed(5) + ',' + startCoord.lng.toFixed(5);
+    st.textContent = '✅ GPS 定位成功';
+  }, () => { st.textContent = '⚠️ 定位失敗，請手動輸入地址'; }, { timeout: 8000 });
+}
+
+// Excel 匯入
+document.getElementById('fileInput').addEventListener('change', async function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const data = await file.arrayBuffer();
+  const wb = XLSX.read(data);
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws);
+  const imported = rows.filter(r => r.Address || r.address).map(r => {
+    const addr = r.Address || r.address || '';
+    const coord = STORE_COORDS[addr] || null;
+    return {
+      name: r.name || r['customer name'] || addr || '(無名稱)',
+      address: addr,
+      lat: coord ? coord.lat : (parseFloat(r.latitude) || null),
+      lng: coord ? coord.lng : (parseFloat(r.longitude) || null),
+      manual: false
+    };
+  });
+  stops = [...imported, ...stops.filter(s => s.manual)];
+  renderList();
+  e.target.value = '';
+});
+
+// 手動新增
+function addManual() {
+  const name = document.getElementById('addName').value.trim();
+  const addr = document.getElementById('addAddr').value.trim();
+  const note = document.getElementById('addNote').value.trim();
+  if (!addr) { alert('請輸入地址'); return; }
+
+  const direct = parseLatLng(addr);
+  const fixed = STORE_COORDS[addr] || null;
+  const coord = direct || fixed;
+
+  stops.push({
+    name: name || addr,
+    address: addr,
+    note: note,
+    lat: coord ? coord.lat : null,
+    lng: coord ? coord.lng : null,
+    manual: true
+  });
+
+  document.getElementById('addName').value = '';
+  document.getElementById('addAddr').value = '';
+  document.getElementById('addNote').value = '';
+  renderList();
+}
+document.getElementById('addAddr').addEventListener('keydown', e => { if (e.key==='Enter') addManual(); });
+
+function deleteStop(i) { stops.splice(i,1); renderList(); }
+function clearAll() { stops=[]; route=[]; renderList(); }
+
+function guessCoord(address) {
+  for (const [town, coord] of Object.entries(TOWN_COORDS)) {
+    if (address.includes(town)) return { ...coord };
+  }
+  return null;
+}
+
+function previewCoord(address) {
+  return guessCoord(address) || { lat: 23.6978, lng: 120.9605 }; // 台灣中心點
+}
+
+function parseLatLng(text) {
+  const m = String(text || '').trim().match(/^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)$/);
+  if (!m) return null;
+  const lat = parseFloat(m[1]);
+  const lng = parseFloat(m[2]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { lat, lng };
+}
+
+function getCoord(s) {
+  if (s.lat && s.lng) return { lat: s.lat, lng: s.lng };
+  const c = STORE_COORDS[s.address];
+  if (c) return c;
+  return null; // 需要線上查詢
+}
+
+async function geocodeAddress(address) {
+  if (!address) return null;
+  // 先查內建座標
+  if (STORE_COORDS[address]) return STORE_COORDS[address];
+
+  // 座標格式
+  const direct = parseLatLng(address);
+  if (direct) return direct;
+
+  // 用 Nominatim 查詢（多組 query 以提升台灣地址命中率）
+  const queries = Array.from(new Set([
+    address.trim(),
+    address.replace(/[（）()]/g, ' ').replace(/\s+/g, ' ').trim(),
+    `台灣 ${address.trim()}`
+  ].filter(Boolean)));
+
+  for (const q of queries) {
+    try {
+      const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=tw&q=' + encodeURIComponent(q);
+      const r = await fetch(url, { headers: { 'User-Agent': 'RouteApp/1.0', 'Accept-Language': 'zh-TW' } });
+      const d = await r.json();
+      if (d && d[0]) return { lat: parseFloat(d[0].lat), lng: parseFloat(d[0].lon) };
+    } catch(e) {}
+  }
+
+  // 最後備用：鄉鎮市中心估算（固定，不再使用隨機）
+  return guessCoord(address);
+}
+
+function renderList() {
+  const list = document.getElementById('stopList');
+  document.getElementById('stopCount').textContent = stops.length + ' 個';
+  if (!stops.length) {
+    list.innerHTML = '<li class="empty-hint">尚未匯入站點</li>';
+    if (leafletMap) updateMap([]);
+    return;
+  }
+  list.innerHTML = stops.map((s,i) => `<li class="stop-item">
+    <div class="snum ${s.manual?'manual':''}">${i+1}</div>
+    <div class="sinfo"><div class="sname">${esc(s.name)}</div><div class="saddr">${esc(s.address)}</div>${s.note?'<div class="snote">📝 '+esc(s.note)+'</div>':''}</div>
+    <button class="del-btn" onclick="deleteStop(${i})">✕</button>
+  </li>`).join('');
+
+  // 先用已知座標畫圖，未知的用鄉鎮估算預覽
+  const pts = stops.map((s,i) => {
+    const c = getCoord(s) || previewCoord(s.address);
+    return { ...c, name: s.name, address: s.address, manual: s.manual };
+  });
+  setTimeout(() => updateMap(pts), 100);
+}
+
+function haversine(a, b) {
+  const R=6371, dl=(b.lat-a.lat)*Math.PI/180, dg=(b.lng-a.lng)*Math.PI/180;
+  const x=Math.sin(dl/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dg/2)**2;
+  return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+
+function nearestNeighbor(pts, from) {
+  const visited = new Array(pts.length).fill(false);
+  const order = [];
+  let cur = from;
+  for (let i=0; i<pts.length; i++) {
+    let best=-1, bestD=Infinity;
+    pts.forEach((p,j)=>{ if(!visited[j]){const d=haversine(cur,p);if(d<bestD){bestD=d;best=j;}} });
+    visited[best]=true; order.push(best); cur=pts[best];
+  }
+  return order;
+}
+
+function routeDistance(path, anchor) {
+  if (!path.length) return 0;
+  let total = haversine(anchor, path[0]);
+  for (let i = 1; i < path.length; i++) total += haversine(path[i - 1], path[i]);
+  return total;
+}
+
+function twoOpt(path, anchor) {
+  if (path.length < 4) return path;
+  let best = path.slice();
+  let improved = true;
+  while (improved) {
+    improved = false;
+    for (let i = 0; i < best.length - 2; i++) {
+      for (let k = i + 1; k < best.length - 1; k++) {
+        const candidate = [
+          ...best.slice(0, i),
+          ...best.slice(i, k + 1).reverse(),
+          ...best.slice(k + 1)
+        ];
+        if (routeDistance(candidate, anchor) + 1e-9 < routeDistance(best, anchor)) {
+          best = candidate;
+          improved = true;
+        }
+      }
+    }
+  }
+  return best;
+}
+
+const sleep = ms => new Promise(r => setTimeout(r,ms));
+
+function esc(v) {
+  return String(v ?? '').replace(/[&<>'"]/g, ch => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[ch]));
+}
+
+function buildDestination(stop) {
+  if (stop.address && stop.address.trim()) return stop.address.trim();
+  if (Number.isFinite(stop.lat) && Number.isFinite(stop.lng)) return `${stop.lat},${stop.lng}`;
+  return stop.name || '';
+}
+
+function setProgress(pct, text) {
+  document.getElementById('progressBar').style.width = pct+'%';
+  document.getElementById('progressText').textContent = text;
+}
+
+async function calcRoute() {
+  if (!stops.length) { alert('請先匯入站點'); return; }
+
+  const finishCalc = () => {
+    document.getElementById('progressWrap').style.display = 'none';
+    document.getElementById('calcBtn').disabled = false;
+  };
+
+  document.getElementById('calcBtn').disabled = true;
+  document.getElementById('progressWrap').style.display = 'block';
+  setProgress(0, '準備中...');
+
+  let startPt = null;
+  const startVal = document.getElementById('startInput').value.trim();
+  startPt = parseLatLng(startVal);
+  if (!startPt && startCoord) startPt = { ...startCoord };
+  if (!startPt && startVal) startPt = await geocodeAddress(startVal);
+  if (!startPt) startPt = { lat: 22.6797, lng: 120.4906 }; // 預設屏東市
+  startPt.name = startVal || '出發點';
+  startPt.address = startVal || '';
+  startPt.type = 'start';
+
+  setProgress(20, '解析站點座標...');
+
+  const resolved = [];
+  const unresolved = [];
+  for (let i = 0; i < stops.length; i++) {
+    const s = stops[i];
+    setProgress(20 + Math.round((i / stops.length) * 60), `解析 ${i+1}/${stops.length}：${s.name}`);
+    let coord = getCoord(s);
+    if (!coord) {
+      coord = await geocodeAddress(s.address);
+      await sleep(300); // 避免被封
+    }
+    if (!coord) {
+      unresolved.push(s.name || s.address || `第${i+1}站`);
+      continue;
+    }
+    resolved.push({ ...s, ...coord, type: 'stop' });
+  }
+
+  if (!resolved.length) {
+    finishCalc();
+    alert('沒有可用站點座標，請檢查地址格式（建議含縣市）。');
+    return;
+  }
+
+  if (unresolved.length) {
+    finishCalc();
+    alert('以下站點無法定位，請修正後再計算：\n' + unresolved.slice(0, 8).join('\n'));
+    return;
+  }
+
+  setProgress(85, '計算最佳順序...');
+  await sleep(50);
+
+  const order = nearestNeighbor(resolved, startPt);
+  const orderedStops = twoOpt(order.map(i => resolved[i]), startPt);
+  route = [startPt, ...orderedStops];
+
+  const endVal = document.getElementById('endInput').value.trim();
+  if (endVal) {
+    setProgress(92, '解析終點...');
+    const ec = await geocodeAddress(endVal);
+    if (!ec) {
+      finishCalc();
+      alert('終點地址無法定位，請補上完整縣市地址。');
+      return;
+    }
+    route.push({ ...ec, name: endVal, address: endVal, type: 'end' });
+  } else {
+    route.push({ ...startPt, name: '返回出發點', type: 'end' });
+  }
+
+  setProgress(100, '完成！');
+  await sleep(200);
+  finishCalc();
+  startNavigation();
+}
+
+function startNavigation() {
+  currentIdx = 1;
+  document.getElementById('setupScreen').style.display = 'none';
+  document.getElementById('navScreen').style.display = 'block';
+  setTimeout(() => {
+    initNavMap();
+    updateNavUI();
+  }, 100);
+}
+
+function updateNavUI() {
+  const total = route.length - 1;
+  const cur = route[currentIdx];
+  const prev = route[currentIdx - 1];
+
+  document.getElementById('navFraction').textContent = `${currentIdx} / ${total}`;
+  document.getElementById('navTopSub').textContent = `${currentIdx}/${total} 站`;
+  document.getElementById('navBar').style.width = (currentIdx/total*100)+'%';
+  document.getElementById('navCurName').textContent = cur.name;
+  document.getElementById('navCurAddr').textContent = cur.address;
+  const d = haversine(prev, cur);
+  document.getElementById('navCurDist').textContent = `距上站約 ${d<1?(d*1000).toFixed(0)+' m':d.toFixed(1)+' km'}`;
+  
+  // 显示备注
+  const noteEl = document.getElementById('navCurNote');
+  if (cur.note) {
+    noteEl.textContent = '📝 ' + cur.note;
+    noteEl.style.display = 'block';
+  } else {
+    noteEl.style.display = 'none';
+  }
+
+  const next = route[currentIdx+1];
+  if (next) {
+    document.getElementById('navNextName').textContent = next.name;
+    document.getElementById('navNextName').style.color = '';
+    document.getElementById('navNextAddr').textContent = next.address;
+  } else {
+    document.getElementById('navNextName').textContent = '（已是最後一站）';
+    document.getElementById('navNextName').style.color = '#aaa';
+    document.getElementById('navNextAddr').textContent = '';
+  }
+
+  document.getElementById('routePreview').innerHTML = route.map((p,i) => {
+    if (i===0) return '';
+    const done = i < currentIdx, isCur = i===currentIdx;
+    return `<li class="rp-item ${done?'done':isCur?'current':''}">
+      <div class="rp-num ${done?'done-num':isCur?'cur-num':''}">${i}</div>
+      <div style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>
+    </li>`;
+  }).join('');
+
+  updateNavMap();
+  window.scrollTo(0,0);
+}
+
+function goNavigate() {
+  const cur = route[currentIdx];
+  const dest = cur.address || `${cur.lat},${cur.lng}`;
+  if (!dest || dest === ',') { alert('此站點缺少可導航資訊'); return; }
+  
+  // 手机用 Google Maps deep link，直接打开 app
+  const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(dest)}`;
+  window.open(url, '_blank');
+}
+
+function nextStop() {
+  currentIdx++;
+  if (currentIdx >= route.length) { alert('🎉 所有站點已完成！'); exitNav(); return; }
+  updateNavUI();
+}
+
+function skipStop() { nextStop(); }
+
+function exitNav() {
+  document.getElementById('navScreen').style.display = 'none';
+  document.getElementById('setupScreen').style.display = 'block';
+  window.scrollTo(0,0);
+  const pts = stops.map(s => {
+    const c = getCoord(s) || previewCoord(s.address);
+    return { ...c, name: s.name, address: s.address, manual: s.manual };
+  });
+  setTimeout(() => { if(leafletMap) updateMap(pts); }, 100);
+}
+
+// 頁面載入時初始化地圖
+window.addEventListener('load', () => { setTimeout(initMap, 200); });
+</script>
+</body>
+</html>
