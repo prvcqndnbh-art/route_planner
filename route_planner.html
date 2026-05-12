@@ -75,16 +75,20 @@ input[type=text]:focus{border-color:#2563eb;background:#fff}
 .nav-next-label{font-size:11px;font-weight:700;color:#888;margin-bottom:4px}
 .nav-next-name{font-size:15px;font-weight:600;color:#555}
 .nav-next-addr{font-size:12px;color:#888}
-.btn-nav-go{background:#22c55e;color:#fff;font-size:20px;padding:20px 18px;border-radius:16px;border:none;width:100%;cursor:pointer;font-weight:800;margin-bottom:10px;box-shadow:0 4px 12px rgba(34,197,94,0.4)}
+.nav-go-row{display:flex;gap:8px;margin-bottom:10px}
+.btn-nav-go{background:#22c55e;color:#fff;font-size:18px;padding:20px 14px;border-radius:16px;border:none;flex:1;cursor:pointer;font-weight:800;box-shadow:0 4px 12px rgba(34,197,94,0.4)}
 .btn-nav-go:active{background:#16a34a;transform:scale(0.98)}
+.btn-nav-share{background:#f97316;color:#fff;font-size:22px;padding:20px 18px;border-radius:16px;border:none;cursor:pointer;font-weight:800;box-shadow:0 4px 12px rgba(249,115,22,0.35);flex-shrink:0}
+.btn-nav-share:active{background:#ea6c10;transform:scale(0.98)}
 .btn-nav-done{background:#3b82f6;color:#fff;font-size:20px;padding:20px 18px;border-radius:16px;border:none;width:100%;cursor:pointer;font-weight:800;margin-bottom:10px;box-shadow:0 4px 12px rgba(59,130,246,0.4)}
 .btn-nav-done:active{background:#2563eb;transform:scale(0.98)}
 .btn-nav-skip{background:#e5e7eb;color:#374151;font-size:16px;padding:14px;border-radius:14px;border:none;width:100%;cursor:pointer;margin-bottom:10px;font-weight:600}
-.route-preview{list-style:none}
-.rp-item{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid #f0f0f0;font-size:13px}
+.route-preview{list-style:none;max-height:240px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.rp-item{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid #f0f0f0;font-size:13px;cursor:pointer}
 .rp-item:last-child{border-bottom:none}
 .rp-item.done{opacity:0.35;text-decoration:line-through}
 .rp-item.current{font-weight:700;color:#2563eb}
+.rp-item.skipped{opacity:0.5;color:#f59e0b;text-decoration:line-through}
 .rp-num{width:22px;height:22px;border-radius:50%;background:#e0e7ff;color:#2563eb;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
 .rp-num.done-num{background:#f0f0f0;color:#aaa}
 .rp-num.cur-num{background:#2563eb;color:#fff}
@@ -134,7 +138,7 @@ input[type=text]:focus{border-color:#2563eb;background:#fff}
         <button style="padding:9px 14px;font-size:14px;font-weight:700;border-radius:10px;border:none;background:#f59e0b;color:#fff;cursor:pointer;white-space:nowrap" onclick="addManual()">＋ 新增</button>
       </div>
       <!-- 新增：备注字段 -->
-      <input type="text" id="addNote" placeholder="備註（停留几分钟、要交什么东西）" style="margin-top:8px;width:100%;font-size:14px;padding:10px 12px;border:1.5px solid #e0e0e0;border-radius:10px">
+      <input type="text" id="addNote" placeholder="備註（停留幾分鐘、要交什麼東西）" style="margin-top:8px;width:100%;font-size:14px;padding:10px 12px;border:1.5px solid #e0e0e0;border-radius:10px">
     </div>
 
     <div class="card">
@@ -188,7 +192,10 @@ input[type=text]:focus{border-color:#2563eb;background:#fff}
       <div id="navCurNote" style="margin-top:8px;padding:8px 12px;background:#fff3cd;border-radius:8px;font-size:14px;color:#856404;display:none"></div>
     </div>
 
-    <button class="btn-nav-go" onclick="goNavigate()">🗺 開啟 Google Maps 導航</button>
+    <div class="nav-go-row">
+      <button class="btn-nav-go" onclick="goNavigate()">🗺 Google Maps 導航</button>
+      <button class="btn-nav-share" onclick="shareStop()" title="分享地址">📤</button>
+    </div>
     <button class="btn-nav-done" onclick="nextStop()">✅ 已到達，前往下一站</button>
     <button class="btn-nav-skip" onclick="skipStop()">跳過此站</button>
 
@@ -1033,9 +1040,8 @@ async function calcRoute() {
   }
 
   if (unresolved.length) {
-    finishCalc();
-    alert('以下站點無法定位，請修正後再計算：\n' + unresolved.slice(0, 8).join('\n'));
-    return;
+    const msg = `⚠️ 以下 ${unresolved.length} 個站點無法定位，是否略過並繼續？\n${unresolved.slice(0,6).join('\n')}`;
+    if (!confirm(msg)) { finishCalc(); return; }
   }
 
   setProgress(85, '計算最佳順序...');
@@ -1079,26 +1085,26 @@ function updateNavUI() {
   const total = route.length - 1;
   const cur = route[currentIdx];
   const prev = route[currentIdx - 1];
+  const isLast = currentIdx === route.length - 1;
 
   document.getElementById('navFraction').textContent = `${currentIdx} / ${total}`;
   document.getElementById('navTopSub').textContent = `${currentIdx}/${total} 站`;
   document.getElementById('navBar').style.width = (currentIdx/total*100)+'%';
   document.getElementById('navCurName').textContent = cur.name;
   document.getElementById('navCurAddr').textContent = cur.address;
+
   const d = haversine(prev, cur);
-  document.getElementById('navCurDist').textContent = `距上站約 ${d<1?(d*1000).toFixed(0)+' m':d.toFixed(1)+' km'}`;
-  
-  // 显示备注
+  let remDist = 0;
+  for (let i = currentIdx; i < route.length - 1; i++) remDist += haversine(route[i], route[i+1]);
+  const fmt = v => v < 1 ? (v*1000).toFixed(0)+' m' : v.toFixed(1)+' km';
+  document.getElementById('navCurDist').textContent = `距上站約 ${fmt(d)}　剩餘 ${fmt(remDist)}`;
+
   const noteEl = document.getElementById('navCurNote');
-  if (cur.note) {
-    noteEl.textContent = '📝 ' + cur.note;
-    noteEl.style.display = 'block';
-  } else {
-    noteEl.style.display = 'none';
-  }
+  if (cur.note) { noteEl.textContent = '📝 ' + cur.note; noteEl.style.display = 'block'; }
+  else { noteEl.style.display = 'none'; }
 
   const next = route[currentIdx+1];
-  if (next) {
+  if (next && !isLast) {
     document.getElementById('navNextName').textContent = next.name;
     document.getElementById('navNextName').style.color = '';
     document.getElementById('navNextAddr').textContent = next.address;
@@ -1108,14 +1114,21 @@ function updateNavUI() {
     document.getElementById('navNextAddr').textContent = '';
   }
 
+  document.querySelector('.btn-nav-done').textContent = isLast ? '🏁 完成導航' : '✅ 已到達，前往下一站';
+
   document.getElementById('routePreview').innerHTML = route.map((p,i) => {
     if (i===0) return '';
     const done = i < currentIdx, isCur = i===currentIdx;
-    return `<li class="rp-item ${done?'done':isCur?'current':''}">
+    let cls = isCur ? 'current' : (done ? 'done' : '');
+    if (p.skipped) cls += ' skipped';
+    return `<li class="rp-item ${cls}" onclick="jumpToStop(${i})">
       <div class="rp-num ${done?'done-num':isCur?'cur-num':''}">${i}</div>
       <div style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>
     </li>`;
   }).join('');
+
+  const curItem = document.querySelector('#routePreview .rp-item.current');
+  if (curItem) curItem.scrollIntoView({ behavior:'smooth', block:'nearest' });
 
   updateNavMap();
   window.scrollTo(0,0);
@@ -1125,19 +1138,57 @@ function goNavigate() {
   const cur = route[currentIdx];
   const dest = cur.address || `${cur.lat},${cur.lng}`;
   if (!dest || dest === ',') { alert('此站點缺少可導航資訊'); return; }
-  
-  // 手机用 Google Maps deep link，直接打开 app
-  const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(dest)}`;
+  const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}&travelmode=driving`;
   window.open(url, '_blank');
+}
+
+async function shareStop() {
+  const cur = route[currentIdx];
+  const dest = cur.address || `${cur.lat},${cur.lng}`;
+  if (!dest || dest === ',') { alert('此站點缺少可分享資訊'); return; }
+  const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}&travelmode=driving`;
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: cur.name, text: `${cur.name}\n${cur.address}`, url: mapsUrl });
+    } catch(e) {
+      if (e.name !== 'AbortError') fallbackCopy(dest);
+    }
+  } else {
+    fallbackCopy(dest);
+    alert('已複製地址到剪貼簿');
+  }
+}
+
+function fallbackCopy(text) {
+  if (navigator.clipboard) { navigator.clipboard.writeText(text); return; }
+  const el = document.createElement('textarea');
+  el.value = text; document.body.appendChild(el); el.select();
+  document.execCommand('copy'); document.body.removeChild(el);
 }
 
 function nextStop() {
   currentIdx++;
-  if (currentIdx >= route.length) { alert('🎉 所有站點已完成！'); exitNav(); return; }
+  if (currentIdx >= route.length) {
+    const skipped = route.filter(p => p.skipped).length;
+    alert(skipped > 0
+      ? `🎉 導航完成！共 ${route.length-2} 站，跳過 ${skipped} 站。`
+      : `🎉 所有 ${route.length-2} 站導航完成！`);
+    exitNav();
+    return;
+  }
   updateNavUI();
 }
 
-function skipStop() { nextStop(); }
+function skipStop() {
+  route[currentIdx].skipped = true;
+  nextStop();
+}
+
+function jumpToStop(i) {
+  if (i < 1 || i >= route.length) return;
+  currentIdx = i;
+  updateNavUI();
+}
 
 function exitNav() {
   document.getElementById('navScreen').style.display = 'none';
