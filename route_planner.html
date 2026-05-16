@@ -197,7 +197,6 @@ input[type=text]:focus{border-color:#2563eb;background:#fff}
       <button class="btn-nav-share" onclick="shareStop()" title="分享地址">📤</button>
     </div>
     <button class="btn-nav-done" onclick="nextStop()">✅ 已到達，前往下一站</button>
-    <button class="btn-nav-skip" onclick="skipStop()">跳過此站</button>
 
     <div class="card">
       <div class="sec-title">下一站</div>
@@ -206,7 +205,10 @@ input[type=text]:focus{border-color:#2563eb;background:#fff}
     </div>
 
     <div class="card">
-      <div class="sec-title">全部路線</div>
+      <div class="sec-title" style="display:flex;justify-content:space-between;align-items:center">
+        全部路線
+        <button id="deleteModeBtn" onclick="toggleDeleteMode()" style="font-size:12px;padding:4px 10px;border-radius:8px;border:1.5px solid #ef4444;background:#fff;color:#ef4444;cursor:pointer;font-weight:600">✕ 刪除站點</button>
+      </div>
       <ul class="route-preview" id="routePreview"></ul>
     </div>
   </div>
@@ -692,6 +694,7 @@ const TOWN_COORDS = {
 let stops = [];
 let route = [];
 let currentIdx = 0;
+let deleteMode = false;
 let startCoord = null;
 let leafletMap = null;
 let navLeafletMap = null;
@@ -843,7 +846,7 @@ function addManual() {
 document.getElementById('addAddr').addEventListener('keydown', e => { if (e.key==='Enter') addManual(); });
 
 function deleteStop(i) { stops.splice(i,1); renderList(); }
-function clearAll() { stops=[]; route=[]; renderList(); }
+function clearAll() { stops=[]; route=[]; localStorage.removeItem('rp_state'); renderList(); }
 
 function guessCoord(address) {
   for (const [town, coord] of Object.entries(TOWN_COORDS)) {
@@ -922,6 +925,7 @@ function renderList() {
     return { ...c, name: s.name, address: s.address, manual: s.manual };
   });
   setTimeout(() => updateMap(pts), 100);
+  saveState();
 }
 
 function haversine(a, b) {
@@ -1072,6 +1076,7 @@ async function calcRoute() {
 
 function startNavigation() {
   currentIdx = 1;
+  deleteMode = false;
   document.getElementById('setupScreen').style.display = 'none';
   document.getElementById('navScreen').style.display = 'block';
   setTimeout(() => {
@@ -1118,11 +1123,14 @@ function updateNavUI() {
   document.getElementById('routePreview').innerHTML = route.map((p,i) => {
     if (i===0) return '';
     const done = i < currentIdx, isCur = i===currentIdx;
+    const isEnd = i === route.length - 1;
     let cls = isCur ? 'current' : (done ? 'done' : '');
     if (p.skipped) cls += ' skipped';
-    return `<li class="rp-item ${cls}" onclick="jumpToStop(${i})">
+    const canDel = deleteMode && !isCur && !isEnd && i > currentIdx;
+    return `<li class="rp-item ${cls}" onclick="${canDel ? '' : `jumpToStop(${i})`}">
       <div class="rp-num ${done?'done-num':isCur?'cur-num':''}">${i}</div>
       <div style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>
+      ${canDel ? `<button onclick="event.stopPropagation();deleteRouteStop(${i})" style="flex-shrink:0;margin-left:6px;border:none;background:#ef4444;color:#fff;border-radius:6px;padding:3px 10px;font-size:13px;cursor:pointer;font-weight:700">✕</button>` : ''}
     </li>`;
   }).join('');
 
@@ -1131,6 +1139,7 @@ function updateNavUI() {
 
   updateNavMap();
   window.scrollTo(0,0);
+  saveState();
 }
 
 function goNavigate() {
@@ -1189,7 +1198,26 @@ function jumpToStop(i) {
   updateNavUI();
 }
 
+function toggleDeleteMode() {
+  deleteMode = !deleteMode;
+  const btn = document.getElementById('deleteModeBtn');
+  btn.style.background = deleteMode ? '#ef4444' : '#fff';
+  btn.style.color = deleteMode ? '#fff' : '#ef4444';
+  btn.textContent = deleteMode ? '完成' : '✕ 刪除站點';
+  updateNavUI();
+}
+
+function deleteRouteStop(i) {
+  if (i <= currentIdx || i >= route.length - 1) return;
+  const removed = route.splice(i, 1)[0];
+  // 同步從 stops 移除（依名稱+地址比對）
+  const si = stops.findIndex(s => s.name === removed.name && s.address === removed.address);
+  if (si !== -1) stops.splice(si, 1);
+  updateNavUI();
+}
+
 function exitNav() {
+  deleteMode = false;
   document.getElementById('navScreen').style.display = 'none';
   document.getElementById('setupScreen').style.display = 'block';
   window.scrollTo(0,0);
@@ -1198,10 +1226,58 @@ function exitNav() {
     return { ...c, name: s.name, address: s.address, manual: s.manual };
   });
   setTimeout(() => { if(leafletMap) updateMap(pts); }, 100);
+  saveState();
 }
 
-// 頁面載入時初始化地圖
-window.addEventListener('load', () => { setTimeout(initMap, 200); });
+// ── localStorage 狀態保存 ──────────────────────────────────────
+const RP_KEY = 'rp_state_v1';
+
+function saveState() {
+  try {
+    localStorage.setItem(RP_KEY, JSON.stringify({
+      stops, route, currentIdx,
+      screen: document.getElementById('navScreen').style.display !== 'none' ? 'nav' : 'setup',
+      ts: Date.now()
+    }));
+  } catch(e) {}
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(RP_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    // 超過 24 小時自動拋棄
+    if (Date.now() - s.ts > 86400000) { localStorage.removeItem(RP_KEY); return null; }
+    return s;
+  } catch(e) { return null; }
+}
+
+// 頁面載入時初始化地圖，並嘗試恢復上次狀態
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    const s = loadState();
+    if (s && s.stops && s.stops.length) {
+      stops = s.stops;
+      route = s.route || [];
+      currentIdx = s.currentIdx || 1;
+      if (s.screen === 'nav' && route.length > 1) {
+        // 恢復導航畫面
+        document.getElementById('setupScreen').style.display = 'none';
+        document.getElementById('navScreen').style.display = 'block';
+        initNavMap();
+        updateNavUI();
+        // 頂部顯示恢復提示
+        const sub = document.getElementById('navTopSub');
+        sub.textContent += '　（已恢復）';
+      } else {
+        // 恢復站點清單
+        renderList();
+      }
+    }
+    initMap();
+  }, 200);
+});
 </script>
 </body>
 </html>
